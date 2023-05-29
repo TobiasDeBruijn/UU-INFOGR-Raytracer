@@ -26,28 +26,57 @@ internal static class VecUtil {
             Math.Max(left.Z, right)
         );
     }
-}
 
-public enum MaterialType {
-    Diffuse,
-    Glossy,
+    public static Vector3d ToDouble(this Vector3 source) {
+        return new Vector3d(
+            source.X,
+            source.Y,
+            source.Z
+        );
+    }
+
+    public static Vector3 ToFloat(this Vector3d source) {
+        return new Vector3(
+            (float) source.X,
+            (float) source.Y,
+            (float) source.Z
+        );
+    }
+
+    public static double StableAngle(Vector3d left, Vector3d right) {
+        Vector3d leftDiv = left / left.Length;
+        Vector3d rightDiv = right / right.Length;
+
+        double x = (leftDiv + rightDiv).Length;
+        double y = (leftDiv - rightDiv).Length;
+
+        return Math.Atan2(x, y);
+    }
 }
 
 internal struct Material {
     public readonly Vector3 diffuseColor;
     public readonly Vector3 ambientColor;
-    public readonly MaterialType materialType;
-    public readonly float reflectance;
+    public readonly Vector3 specularColor;
+    public readonly float specularity; 
 
-    private Material(Vector3 diffuseColor, MaterialType materialType, float reflectance, Vector3 ambientColor) {
+    private Material(Vector3 diffuseColor, Vector3 ambientColor, Vector3 specularColor, float specularity) {
         this.diffuseColor = diffuseColor;
-        this.materialType = materialType;
-        this.reflectance = reflectance;
         this.ambientColor = ambientColor;
+        this.specularColor = specularColor;
+        this.specularity = specularity;
     }
 
-    public static Material Diffuse(Vector3 color, float reflectance) {
-        return new Material(color, MaterialType.Diffuse, reflectance, color);
+    public static Material Diffuse(Vector3 diffuseColor) {
+        return new Material(diffuseColor, diffuseColor, Vector3.Zero, 0f);
+    }
+
+    public static Material Plastic(Vector3 diffuseColor, float specularity = 1.0f) {
+        return new Material(diffuseColor, diffuseColor, new Vector3(0.4f, 0.4f, 0.4f), specularity);
+    }
+
+    public static Material Metal(Vector3 diffuseColor, float specularity = 1.0f) {
+        return new Material(diffuseColor, diffuseColor, diffuseColor, specularity);
     }
 }
 
@@ -121,8 +150,9 @@ internal struct HitInfo {
 
 internal class MyApplication {
     private readonly Sphere[] _spheres = {
-        new(new Vector3(0, 0, 8), 1, Material.Diffuse(new Vector3(1, 0, 0), 1.0f)),
-        new(new Vector3(1, -3, 8), 1, Material.Diffuse(new Vector3(0, 1, 0), 0.5f))
+        new(new Vector3(0, 0, 8), 1.0f, Material.Plastic(new Vector3(1, 0, 0), 1f)),
+        new(new Vector3(1, -3, 8), 1.0f, Material.Diffuse(new Vector3(0, 1, 0))),
+        new(new Vector3(-1, 3, 8), 1.0f, Material.Diffuse(new Vector3(0, 0, 1))),
     };
 
     private readonly Light[] _lights = {
@@ -222,35 +252,34 @@ internal class MyApplication {
             foreach (Light light in _lights) {
                 float lightIntensity = IntersectShadowLight(hitPoint, light);
                 
-                // The light reflected depends on the material type
-                Vector3 materialLight;
-                switch (sphere.material.materialType) {
-                    case MaterialType.Diffuse: {
-                        // Angle between the surface normal and the light
-                        float angle = Vector3.Dot(
-                            Vector3.Normalize(hitPoint - sphere.center), // Surface normal
-                            Vector3.Normalize(light.position - hitPoint) // Light direction
-                        );
+                // Diffuse lighting
+                Vector3 surfaceNormal = Vector3.Normalize(hitPoint - sphere.center);
+                Vector3 lightDirectionNormal = Vector3.Normalize(light.position - hitPoint);
+                float angle = Vector3.Dot(
+                    surfaceNormal,
+                    lightDirectionNormal
+                );
 
-                        materialLight =
-                            sphere.material.diffuseColor // Kd
-                            * Math.Max(0, angle); // max(0, N * L) 
-                        
-                        break;
-                    }
-                    case MaterialType.Glossy: {
-                        materialLight = Vector3.Zero;
-                        break;
-                    }
-                    default:
-                        throw new NotImplementedException();
-                }
-                
+                Vector3 diffuseLight =
+                    sphere.material.diffuseColor // Kd
+                    * Math.Max(0, angle); // max(0, N * L)
+
+                Vector3 viewNormal = Vector3.Normalize(ray.direction);
+                Vector3 r = lightDirectionNormal - 2 * Vector3.Dot(lightDirectionNormal, surfaceNormal) * surfaceNormal;
+                float vr = Vector3.Dot(
+                    viewNormal,
+                    r
+                );
+
+                Vector3 glossyLight =
+                    sphere.material.specularColor // Kd
+                    * VecUtil.FromFloat3((float) Math.Pow(Math.Max(0, vr), sphere.material.specularity));
+
                 Vector3 intensityRgb = VecUtil.FromFloat3(lightIntensity);
                 float distanceAttenuation = 1 / sphere.radiusSquared;
                 
                 color +=
-                    (intensityRgb * distanceAttenuation * materialLight)
+                    (intensityRgb * distanceAttenuation * (diffuseLight + glossyLight))
                     .Max(0.0f); // Make sure the color stays positive
             }
             
@@ -299,8 +328,10 @@ internal class MyApplication {
     }
 
     private int ShiftColor(Vector3 color) {
-        var clamped = new Vector3i((int)Math.Floor(color.X * 255), (int)Math.Floor(color.Y * 255),
-            (int)Math.Floor(color.Z * 255));
+        var clamped = new Vector3i(
+            (int)Math.Floor(Math.Clamp(color.X, 0f, 1f) * 255f), 
+            (int)Math.Floor(Math.Clamp(color.Y, 0f, 1f) * 255f),
+            (int)Math.Floor(Math.Clamp(color.Z, 0f, 1f) * 255f));
         return ((byte)clamped.X << 16) | ((byte)clamped.Y << 8) | (byte)clamped.Z;
     }
 }
