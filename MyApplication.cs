@@ -239,6 +239,33 @@ internal class MyApplication {
         return TraceResult.Miss();
     }
 
+    private Vector3 ComputePhongShading(Vector3 hitPoint, Ray primaryRay, Sphere sphere, Light light) {
+        Vector3 surfaceNormal = Vector3.Normalize(hitPoint - sphere.center);
+        Vector3 lightDirectionNormal = Vector3.Normalize(light.position - hitPoint);
+        Vector3 viewNormal = Vector3.Normalize(primaryRay.direction);
+        
+        float angle = Vector3.Dot(
+            surfaceNormal,
+            lightDirectionNormal
+        );
+
+        Vector3 diffuseColor =
+            sphere.material.diffuseColor // Kd
+            * Math.Max(0, angle); // max(0, N * L)
+
+        Vector3 specularDirection = lightDirectionNormal - 2 * Vector3.Dot(lightDirectionNormal, surfaceNormal) * surfaceNormal;
+        float specularity = Vector3.Dot(
+            viewNormal,
+            Vector3.Normalize(specularDirection)
+        );
+        
+        Vector3 specularColor =
+            sphere.material.specularColor // Kd
+            * VecUtil.FromFloat3((float) Math.Pow(Math.Max(0, specularity), sphere.material.specularity));
+
+        return diffuseColor + specularColor;
+    }
+
     private HitInfo IntersectSphere(Ray ray, Sphere sphere) {
         TraceResult traceResult = IntersectsSphere(ray, sphere);
         
@@ -252,34 +279,12 @@ internal class MyApplication {
             foreach (Light light in _lights) {
                 float lightIntensity = IntersectShadowLight(hitPoint, light);
                 
-                // Diffuse lighting
-                Vector3 surfaceNormal = Vector3.Normalize(hitPoint - sphere.center);
-                Vector3 lightDirectionNormal = Vector3.Normalize(light.position - hitPoint);
-                float angle = Vector3.Dot(
-                    surfaceNormal,
-                    lightDirectionNormal
-                );
-
-                Vector3 diffuseLight =
-                    sphere.material.diffuseColor // Kd
-                    * Math.Max(0, angle); // max(0, N * L)
-
-                Vector3 viewNormal = Vector3.Normalize(ray.direction);
-                Vector3 r = lightDirectionNormal - 2 * Vector3.Dot(lightDirectionNormal, surfaceNormal) * surfaceNormal;
-                float vr = Vector3.Dot(
-                    viewNormal,
-                    r
-                );
-
-                Vector3 glossyLight =
-                    sphere.material.specularColor // Kd
-                    * VecUtil.FromFloat3((float) Math.Pow(Math.Max(0, vr), sphere.material.specularity));
-
+                
                 Vector3 intensityRgb = VecUtil.FromFloat3(lightIntensity);
                 float distanceAttenuation = 1 / sphere.radiusSquared;
                 
                 color +=
-                    (intensityRgb * distanceAttenuation * (diffuseLight + glossyLight))
+                    (intensityRgb * distanceAttenuation * ComputePhongShading(hitPoint, ray, sphere, light))
                     .Max(0.0f); // Make sure the color stays positive
             }
             
