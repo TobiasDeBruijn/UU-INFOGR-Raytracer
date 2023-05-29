@@ -2,24 +2,52 @@ using OpenTK.Mathematics;
 
 namespace Template;
 
+internal static class VecUtil {
+    public static Vector3 FromFloat3(float f) {
+        return new Vector3(f, f, f);
+    }
+
+    public static Vector2 FromFloat2(float f) {
+        return new Vector2(f, f);
+    }
+
+    public static Vector3 Min(this Vector3 left, float right) {
+        return new Vector3(
+            Math.Min(left.X, right),
+            Math.Min(left.Y, right),
+            Math.Min(left.Z, right)
+        );
+    }
+
+    public static Vector3 Max(this Vector3 left, float right) {
+        return new Vector3(
+            Math.Max(left.X, right),
+            Math.Max(left.Y, right),
+            Math.Max(left.Z, right)
+        );
+    }
+}
+
 public enum MaterialType {
     Diffuse,
     Glossy,
 }
 
 internal struct Material {
-    public Vector3 color;
-    public MaterialType materialType;
-    public float reflectance;
+    public readonly Vector3 diffuseColor;
+    public readonly Vector3 ambientColor;
+    public readonly MaterialType materialType;
+    public readonly float reflectance;
 
-    private Material(Vector3 color, MaterialType materialType, float reflectance) {
-        this.color = color;
+    private Material(Vector3 diffuseColor, MaterialType materialType, float reflectance, Vector3 ambientColor) {
+        this.diffuseColor = diffuseColor;
         this.materialType = materialType;
         this.reflectance = reflectance;
+        this.ambientColor = ambientColor;
     }
 
     public static Material Diffuse(Vector3 color, float reflectance) {
-        return new Material(color, MaterialType.Diffuse, reflectance);
+        return new Material(color, MaterialType.Diffuse, reflectance, color);
     }
 }
 
@@ -42,7 +70,7 @@ internal struct TraceResult {
 }
 
 internal struct Light {
-    public Vector3 position;
+    public readonly Vector3 position;
     public readonly float intensity;
 
     public Light(Vector3 position, float intensity) {
@@ -52,9 +80,9 @@ internal struct Light {
 }
 
 internal struct Sphere {
-    public Vector3 center;
+    public readonly Vector3 center;
     public readonly float radius;
-    public Material material;
+    public readonly Material material;
     public readonly float diameter;
     public readonly float radiusSquared;
 
@@ -98,15 +126,14 @@ internal class MyApplication {
     };
 
     private readonly Light[] _lights = {
-        new(new Vector3(5, 0, 0), 0.5f)
+        new(new Vector3(-5, 0, 0), 1f),
+        // new(new Vector3(-4, 0, 0), 1f),
     };
 
+    private readonly Vector3 _ambientLightColor = VecUtil.FromFloat3(43f / 255f);
+    
     private const float NearClip = 0.3f;
     private const float FieldOfView = 60f;
-    // Anti aliasing
-    private const int RaysPerPixel = 30;
-    // Secondary rays
-    private const int MaxRayBounces = 30;
 
     private static readonly Vector3 CameraPosition = new(0.0f, 0.0f, 0.0f);
 
@@ -131,13 +158,19 @@ internal class MyApplication {
 
     }
 
-    private float IntersectShadowLight(Ray ray, Vector3 hitPoint, Light light) {
-        ray.origin = hitPoint;
-        ray.direction = light.position;
+    /// <summary>
+    /// Returns the intensity of the light at the provided hit point from the provided light.
+    /// Does not take distance attenuation into account.
+    /// </summary>
+    /// <param name="hitPoint">The point to calculate the intensity for</param>
+    /// <param name="light">The light to check from</param>
+    /// <returns>The intensity of the light if there's an unobstructed path</returns>
+    private float IntersectShadowLight(Vector3 hitPoint, Light light) {
+        Ray ray = new Ray(hitPoint, light.position);
 
         bool intersectsObstruction = false;
         foreach(Sphere sphere in _spheres) {
-            if (IntersectsSphere(ray, sphere, 0.0001f).collision) {
+            if (IntersectsSphere(ray, sphere, 0.001f).collision) {
                 intersectsObstruction = true;
             }
         }
@@ -151,16 +184,26 @@ internal class MyApplication {
 
     private TraceResult IntersectsSphere(Ray ray, Sphere sphere, float epsilon = 0.0f) {
         Vector3 offsetOrigin = ray.origin - sphere.center;
+
         float a = Vector3.Dot(ray.direction, ray.direction);
         float b = 2 * Vector3.Dot(offsetOrigin, ray.direction);
-        float c = Vector3.Dot(offsetOrigin, offsetOrigin) - sphere.radius * sphere.radius;
+        float c = Vector3.Dot(offsetOrigin, offsetOrigin) - sphere.radiusSquared;
+        
         float d = b * b - 4 * a * c;
-
         if (d >= 0) {
-            float distance = (float)(-b + Math.Sqrt(d)) / (2 * a);
-            float adjustedDistance = distance - epsilon;
+            float dSqrt = (float) Math.Sqrt(d);
+            float a2 = 2 * a;
             
-            return adjustedDistance > 0 ? TraceResult.Collide(distance) : TraceResult.Miss();
+            float distance2 = (-b + dSqrt) / a2;
+            float distance1 = (-b - dSqrt) / a2;
+
+            float d1Eps = distance1 - epsilon;
+            float d2Eps = distance2 - epsilon;
+
+            float distance = Math.Min(Math.Max(distance1, 0), Math.Max(distance2, 0));
+            float distanceEps = Math.Min(Math.Max(d1Eps, 0), Math.Max(d2Eps, 0));
+            
+            return distanceEps > 0 ? TraceResult.Collide(distance) : TraceResult.Miss();
         }
 
         return TraceResult.Miss();
@@ -171,38 +214,50 @@ internal class MyApplication {
         
         // At least one intersection
         if (traceResult.collision && traceResult.distance >= 0) {
+            // Point on the surfac of the sphere
             Vector3 hitPoint = ray.origin + ray.direction * traceResult.distance;
+            Vector3 color = Vector3.Zero;
             
-            float lightIntensity = 0.0f;
-            Vector3 color = Vector3.One;
-
+            // Compute the contributions from each light
             foreach (Light light in _lights) {
-                float localLightIntensity =  IntersectShadowLight(ray, hitPoint, light);
-                if (localLightIntensity <= 0) {
-                    continue;
+                float lightIntensity = IntersectShadowLight(hitPoint, light);
+                
+                // The light reflected depends on the material type
+                Vector3 materialLight;
+                switch (sphere.material.materialType) {
+                    case MaterialType.Diffuse: {
+                        // Angle between the surface normal and the light
+                        float angle = Vector3.Dot(
+                            Vector3.Normalize(hitPoint - sphere.center), // Surface normal
+                            Vector3.Normalize(light.position - hitPoint) // Light direction
+                        );
+
+                        materialLight =
+                            sphere.material.diffuseColor // Kd
+                            * Math.Max(0, angle); // max(0, N * L) 
+                        
+                        break;
+                    }
+                    case MaterialType.Glossy: {
+                        materialLight = Vector3.Zero;
+                        break;
+                    }
+                    default:
+                        throw new NotImplementedException();
                 }
                 
-                lightIntensity += localLightIntensity;
+                Vector3 intensityRgb = VecUtil.FromFloat3(lightIntensity);
                 float distanceAttenuation = 1 / sphere.radiusSquared;
-                Vector3 intensityRgb = new(localLightIntensity, localLightIntensity, localLightIntensity);
-                float floatingAngle = Vector3.Dot(
-                    Vector3.Normalize(hitPoint - sphere.center), // surface normal
-                    Vector3.Normalize(hitPoint - light.position)
-                );
-
-                int scalarAngle = (int) Math.Round(floatingAngle);
-                Vector3 colorFromLight = 
-                    intensityRgb                    // Intensity of the light source
-                    * distanceAttenuation           // Light decreases in intensity over distance
-                    * Math.Max(0f, scalarAngle) *   // Angle of the incoming light compared to the normal on the sphere, or 0 if it's the wrong side
-                    sphere.material.color;          // Color of the material 
-
-                color *= colorFromLight;
+                
+                color +=
+                    (intensityRgb * distanceAttenuation * materialLight)
+                    .Max(0.0f); // Make sure the color stays positive
             }
-
-            // If there's no light, there can be no color
-            Vector3 visibleColor = lightIntensity > 0 ? color : Vector3.Zero;
-            return new HitInfo(true, hitPoint, traceResult.distance, visibleColor);
+            
+            // Add ambient light
+            color += _ambientLightColor * sphere.material.ambientColor;
+            
+            return new HitInfo(true, hitPoint, traceResult.distance, color);
         }
 
         return new HitInfo(false, Vector3.Zero, 0, Vector3.Zero);

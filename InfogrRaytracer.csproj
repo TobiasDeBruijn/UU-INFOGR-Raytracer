@@ -5,7 +5,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>INFOGR2023Template</RootNamespace>
+    <RootNamespace>Template</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
