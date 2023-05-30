@@ -77,7 +77,7 @@ namespace Template
             GL.Disable(EnableCap.DepthTest);
             Surface screen = new(ClientSize.X, ClientSize.Y);
             app = new MyApplication(screen);
-            screenID = app.screen.GenTexture();
+            screenID = app.Screen.GenTexture();
             if (allowPrehistoricOpenGL)
             {
                 GL.Enable(EnableCap.Texture2D);
@@ -144,7 +144,6 @@ namespace Template
                 GL.BindTexture(TextureTarget.Texture2D, screenID);
                 GL.Uniform1(GL.GetUniformLocation(programID, "pixels"), 0);
             }
-            app.Init();
         }
         protected override void OnUnload()
         {
@@ -187,9 +186,9 @@ namespace Template
             {
                 GL.BindTexture(TextureTarget.Texture2D, screenID);
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba,
-                               app.screen.width, app.screen.height, 0,
+                               app.Screen.width, app.Screen.height, 0,
                                PixelFormat.Bgra,
-                               PixelType.UnsignedByte, app.screen.pixels
+                               PixelType.UnsignedByte, app.Screen.pixels
                              );
                 // draw screen filling quad
                 if (allowPrehistoricOpenGL)

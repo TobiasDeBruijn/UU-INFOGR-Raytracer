@@ -52,41 +52,51 @@ internal static class VecUtil {
 
         return Math.Atan2(x, y);
     }
+
+    public static bool IsZero(this Vector3 vector) {
+        return vector.X == 0 && vector.Y == 0 && vector.Z == 0;
+    }
 }
 
 internal struct Material {
-    public readonly Vector3 diffuseColor;
-    public readonly Vector3 ambientColor;
-    public readonly Vector3 specularColor;
-    public readonly float specularity; 
+    public readonly Vector3 DiffuseColor;
+    public readonly Vector3 AmbientColor;
+    public readonly Vector3 SpecularColor;
+    public readonly float Specularity;
+    public readonly Vector3 MirrorColor;
 
-    private Material(Vector3 diffuseColor, Vector3 ambientColor, Vector3 specularColor, float specularity) {
-        this.diffuseColor = diffuseColor;
-        this.ambientColor = ambientColor;
-        this.specularColor = specularColor;
-        this.specularity = specularity;
+    private Material(Vector3 diffuseColor, Vector3 ambientColor, Vector3 specularColor, float specularity, Vector3 mirrorColor) {
+        this.DiffuseColor = diffuseColor;
+        this.AmbientColor = ambientColor;
+        this.SpecularColor = specularColor;
+        this.Specularity = specularity;
+        MirrorColor = mirrorColor;
     }
 
     public static Material Diffuse(Vector3 diffuseColor) {
-        return new Material(diffuseColor, diffuseColor, Vector3.Zero, 0f);
+        return new Material(diffuseColor, diffuseColor, Vector3.Zero, 0f, Vector3.Zero);
     }
 
     public static Material Plastic(Vector3 diffuseColor, float specularity = 1.0f) {
-        return new Material(diffuseColor, diffuseColor, new Vector3(0.4f, 0.4f, 0.4f), specularity);
+        return new Material(diffuseColor, diffuseColor, new Vector3(0.4f, 0.4f, 0.4f), specularity, Vector3.Zero);
     }
 
     public static Material Metal(Vector3 diffuseColor, float specularity = 1.0f) {
-        return new Material(diffuseColor, diffuseColor, diffuseColor, specularity);
+        return new Material(diffuseColor, diffuseColor, diffuseColor, specularity, Vector3.Zero);
+    }
+
+    public static Material Mirror(Vector3 mirrorColor) {
+        return new Material(Vector3.Zero, Vector3.Zero, Vector3.Zero, 0.0f, mirrorColor);
     }
 }
 
 internal struct TraceResult {
-    public readonly bool collision;
-    public readonly float distance;
+    public readonly bool Collision;
+    public readonly float Distance;
 
     private TraceResult(bool collision, float distance) {
-        this.collision = collision;
-        this.distance = distance;
+        this.Collision = collision;
+        this.Distance = distance;
     }
 
     public static TraceResult Collide(float distance) {
@@ -99,65 +109,51 @@ internal struct TraceResult {
 }
 
 internal struct Light {
-    public readonly Vector3 position;
-    public readonly float intensity;
+    public readonly Vector3 Position;
+    public readonly float Intensity;
 
     public Light(Vector3 position, float intensity) {
-        this.position = position;
-        this.intensity = intensity;
+        this.Position = position;
+        this.Intensity = intensity;
     }
 }
 
 internal struct Sphere {
-    public readonly Vector3 center;
-    public readonly float radius;
-    public readonly Material material;
-    public readonly float diameter;
-    public readonly float radiusSquared;
+    public readonly Vector3 Center;
+    public readonly float Radius;
+    public readonly Material Material;
+    public readonly float Diameter;
+    public readonly float RadiusSquared;
 
     public Sphere(Vector3 center, float radius, Material material) {
-        this.center = center;
-        this.radius = radius;
-        this.material = material;
-        this.diameter = radius * 2;
-        this.radiusSquared = radius * radius;
+        this.Center = center;
+        this.Radius = radius;
+        this.Material = material;
+        this.Diameter = radius * 2;
+        this.RadiusSquared = radius * radius;
     }
 }
 
 internal struct Ray {
-    public Vector3 origin;
-    public Vector3 direction;
+    public Vector3 Origin;
+    public Vector3 Direction;
 
     public Ray(Vector3 origin, Vector3 direction) {
-        this.origin = origin;
-        this.direction = direction;
-    }
-}
-
-internal struct HitInfo {
-    public readonly bool didHit;
-    public Vector3 hitPoint;
-    public float distance;
-    public Vector3 color;
-
-    public HitInfo(bool didHit, Vector3 hitPoint, float distance, Vector3 color) {
-        this.didHit = didHit;
-        this.hitPoint = hitPoint;
-        this.distance = distance;
-        this.color = color;
+        this.Origin = origin;
+        this.Direction = direction;
     }
 }
 
 internal class MyApplication {
     private readonly Sphere[] _spheres = {
-        new(new Vector3(0, 0, 8), 1.0f, Material.Plastic(new Vector3(1, 0, 0), 1f)),
-        new(new Vector3(1, -3, 8), 1.0f, Material.Diffuse(new Vector3(0, 1, 0))),
-        new(new Vector3(-1, 3, 8), 1.0f, Material.Diffuse(new Vector3(0, 0, 1))),
+        new(new Vector3(0, 0, 8), 1.0f, Material.Mirror(new Vector3(1, 0, 0))),
+        new(new Vector3(3, 0, 8), 1.0f, Material.Plastic(new Vector3(0, 1, 0))),
+        new(new Vector3(-3, 0, 8), 1.0f, Material.Diffuse(new Vector3(0, 0, 1))),
     };
 
     private readonly Light[] _lights = {
         new(new Vector3(-5, 0, 0), 1f),
-        // new(new Vector3(-4, 0, 0), 1f),
+        // new(new Vector3(5, 9, 0), 0.7f),
     };
 
     private readonly Vector3 _ambientLightColor = VecUtil.FromFloat3(43f / 255f);
@@ -177,15 +173,10 @@ internal class MyApplication {
     private static readonly Vector3 CameraRightDirection = new((float)Math.Cos(Yaw), 0, (float)-Math.Sin(Yaw));
     private static readonly Vector3 CameraUpDirection = Vector3.Cross(CameraForwardDirection, CameraRightDirection);
 
-
-    public Surface screen;
+    public readonly Surface Screen;
 
     public MyApplication(Surface screen) {
-        this.screen = screen;
-    }
-
-    public void Init() {
-
+        this.Screen = screen;
     }
 
     /// <summary>
@@ -196,11 +187,11 @@ internal class MyApplication {
     /// <param name="light">The light to check from</param>
     /// <returns>The intensity of the light if there's an unobstructed path</returns>
     private float IntersectShadowLight(Vector3 hitPoint, Light light) {
-        Ray ray = new Ray(hitPoint, light.position);
+        Ray ray = new Ray(hitPoint, light.Position);
 
         bool intersectsObstruction = false;
         foreach(Sphere sphere in _spheres) {
-            if (IntersectsSphere(ray, sphere, 0.001f).collision) {
+            if (IntersectsSphere(ray, sphere, 0.001f).Collision) {
                 intersectsObstruction = true;
             }
         }
@@ -209,15 +200,15 @@ internal class MyApplication {
             return 0.0f;
         }
 
-        return light.intensity;
+        return light.Intensity;
     }
 
-    private TraceResult IntersectsSphere(Ray ray, Sphere sphere, float epsilon = 0.0f) {
-        Vector3 offsetOrigin = ray.origin - sphere.center;
+    private static TraceResult IntersectsSphere(Ray ray, Sphere sphere, float epsilon = 0.0f) {
+        Vector3 offsetOrigin = ray.Origin - sphere.Center;
 
-        float a = Vector3.Dot(ray.direction, ray.direction);
-        float b = 2 * Vector3.Dot(offsetOrigin, ray.direction);
-        float c = Vector3.Dot(offsetOrigin, offsetOrigin) - sphere.radiusSquared;
+        float a = Vector3.Dot(ray.Direction, ray.Direction);
+        float b = 2 * Vector3.Dot(offsetOrigin, ray.Direction);
+        float c = Vector3.Dot(offsetOrigin, offsetOrigin) - sphere.RadiusSquared;
         
         float d = b * b - 4 * a * c;
         if (d >= 0) {
@@ -239,10 +230,10 @@ internal class MyApplication {
         return TraceResult.Miss();
     }
 
-    private Vector3 ComputePhongShading(Vector3 hitPoint, Ray primaryRay, Sphere sphere, Light light) {
-        Vector3 surfaceNormal = Vector3.Normalize(hitPoint - sphere.center);
-        Vector3 lightDirectionNormal = Vector3.Normalize(light.position - hitPoint);
-        Vector3 viewNormal = Vector3.Normalize(primaryRay.direction);
+    private static Vector3 ComputePhongShading(Vector3 hitPoint, Ray primaryRay, Sphere sphere, Light light) {
+        Vector3 surfaceNormal = Vector3.Normalize(hitPoint - sphere.Center);
+        Vector3 lightDirectionNormal = Vector3.Normalize(light.Position - hitPoint);
+        Vector3 viewNormal = Vector3.Normalize(primaryRay.Direction);
         
         float angle = Vector3.Dot(
             surfaceNormal,
@@ -250,7 +241,7 @@ internal class MyApplication {
         );
 
         Vector3 diffuseColor =
-            sphere.material.diffuseColor // Kd
+            sphere.Material.DiffuseColor // Kd
             * Math.Max(0, angle); // max(0, N * L)
 
         Vector3 specularDirection = lightDirectionNormal - 2 * Vector3.Dot(lightDirectionNormal, surfaceNormal) * surfaceNormal;
@@ -260,55 +251,83 @@ internal class MyApplication {
         );
         
         Vector3 specularColor =
-            sphere.material.specularColor // Kd
-            * VecUtil.FromFloat3((float) Math.Pow(Math.Max(0, specularity), sphere.material.specularity));
+            sphere.Material.SpecularColor // Kd
+            * VecUtil.FromFloat3((float) Math.Pow(Math.Max(0, specularity), sphere.Material.Specularity));
 
         return diffuseColor + specularColor;
     }
 
-    private HitInfo IntersectSphere(Ray ray, Sphere sphere) {
+    private static Vector3 CalculateReflectionRay(Vector3 viewRay, Vector3 normalRay) {
+        return viewRay - 2 * Vector3.Dot(viewRay, normalRay) * normalRay;
+    }
+
+    private Vector3 IntersectSphere(Ray ray, Sphere sphere, int secondaryBounceCount = 0) {
         TraceResult traceResult = IntersectsSphere(ray, sphere);
         
         // At least one intersection
-        if (traceResult.collision && traceResult.distance >= 0) {
+        if (traceResult.Collision && traceResult.Distance >= 0) {
             // Point on the surfac of the sphere
-            Vector3 hitPoint = ray.origin + ray.direction * traceResult.distance;
+            Vector3 hitPoint = ray.Origin + ray.Direction * traceResult.Distance;
             Vector3 color = Vector3.Zero;
-            
-            // Compute the contributions from each light
-            foreach (Light light in _lights) {
-                float lightIntensity = IntersectShadowLight(hitPoint, light);
+
+            if (sphere.Material.DiffuseColor.IsZero() && !sphere.Material.MirrorColor.IsZero()) {
+                if (secondaryBounceCount > 32) {
+                    return Vector3.Zero;
+                }
                 
+                Vector3 secondaryRayDirection = CalculateReflectionRay(
+                    ray.Direction.Normalized(),
+                    (hitPoint - sphere.Center).Normalized()
+                );
+
+                Vector3 secondaryRayColor = Vector3.Zero;
+                // Trace to all other spheres
+                foreach (Sphere secondarySphere in _spheres) {
+                    Console.WriteLine(secondaryBounceCount);
+                    secondaryRayColor += IntersectSphere(
+                        new Ray(hitPoint, secondaryRayDirection), 
+                        secondarySphere,
+                        secondaryBounceCount == 0 ? 1 : ++secondaryBounceCount
+                    );
+                    
+                    Console.WriteLine(secondaryRayColor);
+                }
+
+                color = secondaryRayColor * sphere.Material.SpecularColor;
+            } else {
+                // Compute the contributions from each light
+                foreach (Light light in _lights) {
+                    float lightIntensity = IntersectShadowLight(hitPoint, light);
+                    Vector3 intensityRgb = VecUtil.FromFloat3(lightIntensity);
+                    float distanceAttenuation = 1 / sphere.RadiusSquared;
                 
-                Vector3 intensityRgb = VecUtil.FromFloat3(lightIntensity);
-                float distanceAttenuation = 1 / sphere.radiusSquared;
-                
-                color +=
-                    (intensityRgb * distanceAttenuation * ComputePhongShading(hitPoint, ray, sphere, light))
-                    .Max(0.0f); // Make sure the color stays positive
+                    color +=
+                        (intensityRgb * distanceAttenuation * ComputePhongShading(hitPoint, ray, sphere, light))
+                        .Max(0.0f); // Make sure the color stays positive
+                }
             }
             
             // Add ambient light
-            color += _ambientLightColor * sphere.material.ambientColor;
-            
-            return new HitInfo(true, hitPoint, traceResult.distance, color);
+            color += _ambientLightColor * sphere.Material.AmbientColor;
+
+            return color;
         }
 
-        return new HitInfo(false, Vector3.Zero, 0, Vector3.Zero);
+        return Vector3.Zero;
     }
 
     public void Tick() {
-        screen.Clear(0);
+        Screen.Clear(0);
 
         float planeHeight = NearClip * (float)Math.Tan(MathHelper.DegreesToRadians(FieldOfView * 0.5f)) * 2;
-        float aspectRatio = (float)screen.width / screen.height;
+        float aspectRatio = (float)Screen.width / Screen.height;
         float planeWidth = planeHeight * aspectRatio;
 
         var viewParams = new Vector3(planeWidth, planeHeight, NearClip);
 
-        for (int x = 0; x < screen.width; x++) {
-            for (int y = 0; y < screen.height; y++) {
-                Vector2 vplXy = new Vector2(x, y) / new Vector2(screen.width, screen.height) -
+        for (int x = 0; x < Screen.width; x++) {
+            for (int y = 0; y < Screen.height; y++) {
+                Vector2 vplXy = new Vector2(x, y) / new Vector2(Screen.width, Screen.height) -
                                 new Vector2(0.5f, 0.5f);
                 Vector3 viewPointLocal = new Vector3(vplXy.X, vplXy.Y, 1f) * viewParams;
 
@@ -318,18 +337,18 @@ internal class MyApplication {
 
                 var cameraPrimaryRay = new Ray(CameraPosition, Vector3.Normalize(viewPoint - CameraPosition));
 
+                Vector3 pixelColor = Vector3.Zero;
                 foreach (Sphere sphere in _spheres) {
-                    HitInfo hitInfo = IntersectSphere(cameraPrimaryRay, sphere);
-                    if (hitInfo.didHit) {
-                        SetPixel(new Vector2i(x, y), hitInfo.color);
-                    }
+                    pixelColor += IntersectSphere(cameraPrimaryRay, sphere);
                 }
+                
+                SetPixel(new Vector2i(x, y), pixelColor);
             }
         }
     }
 
     private void SetPixel(Vector2i position, Vector3 color) {
-        screen.pixels[position.Y * screen.width + position.X] = ShiftColor(color);
+        Screen.pixels[position.Y * Screen.width + position.X] = ShiftColor(color);
     }
 
     private int ShiftColor(Vector3 color) {
