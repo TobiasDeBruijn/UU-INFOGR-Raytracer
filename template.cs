@@ -22,7 +22,7 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Template
 {
-    public class OpenTKApp : GameWindow
+    public class OpenTkApp : GameWindow
     {
         /**
          * IMPORTANT:
@@ -38,20 +38,20 @@ namespace Template
          * 
          * MacOS doesn't support prehistoric OpenGL anymore since 2018.
          */
-        public const bool allowPrehistoricOpenGL = false;
+        public const bool AllowPrehistoricOpenGl = false;
 
-        int screenID;            // unique integer identifier of the OpenGL texture
-        MyApplication? app;      // instance of the application
-        bool terminated = false; // application terminates gracefully when this is true
+        int _screenId;            // unique integer identifier of the OpenGL texture
+        MyApplication? _app;      // instance of the application
+        bool _terminated = false; // application terminates gracefully when this is true
 
         // The following variables are only needed in Modern OpenGL
         public int vertexArrayObject;
         public int vertexBufferObject;
-        public int programID;
+        public int programId;
         // All the data for the vertices interleaved in one array:
         // - XYZ in normalized device coordinates
         // - UV
-        readonly float[] vertices =
+        readonly float[] _vertices =
         { //  X      Y     Z     U     V
             -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, // bottom-left  2-----3 triangles:
              1.0f, -1.0f, 0.0f, 1.0f, 1.0f, // bottom-right | \   |     012
@@ -59,12 +59,12 @@ namespace Template
              1.0f,  1.0f, 0.0f, 1.0f, 0.0f, // top-right    0-----1
         };
 
-        public OpenTKApp()
+        public OpenTkApp()
             : base(GameWindowSettings.Default, new NativeWindowSettings()
             {
                 Size = new Vector2i(1280, 720),
-                Profile = allowPrehistoricOpenGL ? ContextProfile.Compatability : ContextProfile.Core,
-                Flags = allowPrehistoricOpenGL ? ContextFlags.Default : ContextFlags.ForwardCompatible,
+                Profile = AllowPrehistoricOpenGl ? ContextProfile.Compatability : ContextProfile.Core,
+                Flags = AllowPrehistoricOpenGl ? ContextFlags.Default : ContextFlags.ForwardCompatible,
             })
         {
         }
@@ -76,9 +76,9 @@ namespace Template
             GL.ClearColor(0, 0, 0, 0);
             GL.Disable(EnableCap.DepthTest);
             Surface screen = new(ClientSize.X, ClientSize.Y);
-            app = new MyApplication(screen);
-            screenID = app.Screen.GenTexture();
-            if (allowPrehistoricOpenGL)
+            _app = new MyApplication(screen);
+            _screenId = _app.screen.GenTexture();
+            if (AllowPrehistoricOpenGl)
             {
                 GL.Enable(EnableCap.Texture2D);
                 GL.Hint(HintTarget.PerspectiveCorrectionHint, HintMode.Nicest);
@@ -91,7 +91,7 @@ namespace Template
                 // Vertex Buffer Object: a buffer of raw data
                 vertexBufferObject = GL.GenBuffer();
                 GL.BindBuffer(BufferTarget.ArrayBuffer, vertexBufferObject);
-                GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StaticDraw);
+                GL.BufferData(BufferTarget.ArrayBuffer, _vertices.Length * sizeof(float), _vertices, BufferUsageHint.StaticDraw);
                 // Vertex Shader
                 string shaderSource = File.ReadAllText("../../../shaders/screen_vs.glsl");
                 int vertexShader = GL.CreateShader(ShaderType.VertexShader);
@@ -115,41 +115,41 @@ namespace Template
                     throw new Exception($"Error occurred whilst compiling fragment shader ({fragmentShader}):\n{log}");
                 }
                 // Program: a set of shaders to be used together in a pipeline
-                programID = GL.CreateProgram();
-                GL.AttachShader(programID, vertexShader);
-                GL.AttachShader(programID, fragmentShader);
-                GL.LinkProgram(programID);
-                GL.GetProgram(programID, GetProgramParameterName.LinkStatus, out status);
+                programId = GL.CreateProgram();
+                GL.AttachShader(programId, vertexShader);
+                GL.AttachShader(programId, fragmentShader);
+                GL.LinkProgram(programId);
+                GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out status);
                 if (status != (int)All.True)
                 {
-                    string log = GL.GetProgramInfoLog(programID);
-                    throw new Exception($"Error occurred whilst linking program ({programID}):\n{log}");
+                    string log = GL.GetProgramInfoLog(programId);
+                    throw new Exception($"Error occurred whilst linking program ({programId}):\n{log}");
                 }
                 // the program contains the compiled shaders, we can delete the source
-                GL.DetachShader(programID, vertexShader);
-                GL.DetachShader(programID, fragmentShader);
+                GL.DetachShader(programId, vertexShader);
+                GL.DetachShader(programId, fragmentShader);
                 GL.DeleteShader(vertexShader);
                 GL.DeleteShader(fragmentShader);
                 // send all the following draw calls through this pipeline
-                GL.UseProgram(programID);
+                GL.UseProgram(programId);
                 // tell the VAO which part of the VBO data should go to each shader input
-                int location = GL.GetAttribLocation(programID, "vPosition");
+                int location = GL.GetAttribLocation(programId, "vPosition");
                 GL.EnableVertexAttribArray(location);
                 GL.VertexAttribPointer(location, 3, VertexAttribPointerType.Float, false, 5 * sizeof(float), 0);
-                location = GL.GetAttribLocation(programID, "vUV");
+                location = GL.GetAttribLocation(programId, "vUV");
                 GL.EnableVertexAttribArray(location);
                 GL.VertexAttribPointer(location, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
                 // connect the texture to the shader uniform variable
                 GL.ActiveTexture(TextureUnit.Texture0);
-                GL.BindTexture(TextureTarget.Texture2D, screenID);
-                GL.Uniform1(GL.GetUniformLocation(programID, "pixels"), 0);
+                GL.BindTexture(TextureTarget.Texture2D, _screenId);
+                GL.Uniform1(GL.GetUniformLocation(programId, "pixels"), 0);
             }
         }
         protected override void OnUnload()
         {
             base.OnUnload();
             // called upon app close
-            GL.DeleteTextures(1, ref screenID);
+            GL.DeleteTextures(1, ref _screenId);
         }
         protected override void OnResize(ResizeEventArgs e)
         {
@@ -157,7 +157,7 @@ namespace Template
             // called upon window resize. Note: does not change the size of the pixel buffer.
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
             
-            if (allowPrehistoricOpenGL)
+            if (AllowPrehistoricOpenGl)
             {
                 GL.MatrixMode(MatrixMode.Projection);
                 GL.LoadIdentity();
@@ -169,29 +169,29 @@ namespace Template
             base.OnUpdateFrame(e);
             // called once per frame; app logic
             var keyboard = KeyboardState;
-            if (keyboard[Keys.Escape]) terminated = true;
+            if (keyboard[Keys.Escape]) _terminated = true;
         }
         protected override void OnRenderFrame(FrameEventArgs e)
         {
             base.OnRenderFrame(e);
             // called once per frame; render
-            if (app != null) app.Tick();
-            if (terminated)
+            if (_app != null) _app.Tick();
+            if (_terminated)
             {
                 Close();
                 return;
             }
             // convert MyApplication.screen to OpenGL texture
-            if (app != null)
+            if (_app != null)
             {
-                GL.BindTexture(TextureTarget.Texture2D, screenID);
+                GL.BindTexture(TextureTarget.Texture2D, _screenId);
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba,
-                               app.Screen.width, app.Screen.height, 0,
+                               _app.screen.width, _app.screen.height, 0,
                                PixelFormat.Bgra,
-                               PixelType.UnsignedByte, app.Screen.pixels
+                               PixelType.UnsignedByte, _app.screen.pixels
                              );
                 // draw screen filling quad
-                if (allowPrehistoricOpenGL)
+                if (AllowPrehistoricOpenGl)
                 {
                     GL.Begin(PrimitiveType.Quads);
                     GL.TexCoord2(0.0f, 1.0f); GL.Vertex2(-1.0f, -1.0f);
@@ -203,7 +203,7 @@ namespace Template
                 else
                 {
                     GL.BindVertexArray(vertexArrayObject);
-                    GL.UseProgram(programID);
+                    GL.UseProgram(programId);
                     GL.DrawArrays(PrimitiveType.TriangleStrip, 0, 4);
                 }
             }
@@ -213,7 +213,7 @@ namespace Template
         public static void Main()
         {
             // entry point
-            using OpenTKApp app = new();
+            using OpenTkApp app = new();
             app.RenderFrequency = 30.0;
             app.Run();
         }

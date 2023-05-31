@@ -4,7 +4,7 @@ namespace Template;
 
 public sealed class Shader : IDisposable {
     public int Handle { get; }
-    private bool isDisposed = false;
+    private bool _isDisposed = false;
 
     public Shader(string vertexPath, string fragPath) {
         int vertexHandle = CompileShader(vertexPath, ShaderType.VertexShader);
@@ -43,14 +43,14 @@ public sealed class Shader : IDisposable {
     }
 
     private void Dispose(bool disposing) {
-        if (!isDisposed) {
+        if (!_isDisposed) {
             GL.DeleteProgram(Handle);
-            isDisposed = true;
+            _isDisposed = true;
         }
     }
 
     ~Shader() {
-        if (!isDisposed) {
+        if (!_isDisposed) {
             Console.Error.WriteLine("GPU resource leak detected. Did you forget to call Dispose()?");
         }
     }
