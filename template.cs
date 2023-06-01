@@ -72,6 +72,7 @@ namespace Template
         protected override void OnLoad()
         {
             base.OnLoad();
+            CursorGrabbed = true;
             // called during application initialization
             GL.ClearColor(0, 0, 0, 0);
             GL.Disable(EnableCap.DepthTest);
@@ -216,6 +217,16 @@ namespace Template
             using OpenTkApp app = new();
             app.RenderFrequency = 30.0;
             app.Run();
+        }
+
+        protected override void OnKeyDown(KeyboardKeyEventArgs e) {
+            base.OnKeyDown(e);
+            _app!.OnKeyPress(e);
+        }
+
+        protected override void OnMouseMove(MouseMoveEventArgs e) {
+            base.OnMouseMove(e);
+            _app!.OnMouseMove(e);
         }
     }
 }

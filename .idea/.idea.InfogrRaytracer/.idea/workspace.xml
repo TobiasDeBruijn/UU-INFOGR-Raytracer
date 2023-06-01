@@ -15,6 +15,8 @@
   </component>
   <component name="HighlightingSettingsPerFile">
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/0e45dd3a5f064bc9ad30b6e6bd2df2e34aa00/b8/16b8052d/Vector3.cs" root0="SKIP_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/24ccef297ce4446e9cd4d83d552670543000/d5/d4cc7e51/MouseCursor.cs" root0="SKIP_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/9acd228ec5bf4bc2ab79c61452021ebf950400/05/fa100f63/Single.cs" root0="SKIP_HIGHLIGHTING" />
   </component>
   <component name="ProjectId" id="2QSoJ2OltsC6Lop78qoQ9YLb5Is" />
   <component name="ProjectViewState">
@@ -74,7 +76,9 @@
       <workItem from="1685386105574" duration="381000" />
       <workItem from="1685438072775" duration="2987000" />
       <workItem from="1685441131611" duration="2444000" />
-      <workItem from="1685552528767" duration="3723000" />
+      <workItem from="1685552528767" duration="3771000" />
+      <workItem from="1685562309897" duration="1525000" />
+      <workItem from="1685609253253" duration="7060000" />
     </task>
     <servers />
   </component>
