@@ -41,7 +41,7 @@ namespace Template
         public const bool AllowPrehistoricOpenGl = false;
 
         int _screenId;            // unique integer identifier of the OpenGL texture
-        MyApplication? _app;      // instance of the application
+        RayTracer? _app;      // instance of the application
         bool _terminated = false; // application terminates gracefully when this is true
 
         // The following variables are only needed in Modern OpenGL
@@ -77,7 +77,7 @@ namespace Template
             GL.ClearColor(0, 0, 0, 0);
             GL.Disable(EnableCap.DepthTest);
             Surface screen = new(ClientSize.X, ClientSize.Y);
-            _app = new MyApplication(screen);
+            _app = new RayTracer(screen);
             _screenId = _app.screen.GenTexture();
             if (AllowPrehistoricOpenGl)
             {
