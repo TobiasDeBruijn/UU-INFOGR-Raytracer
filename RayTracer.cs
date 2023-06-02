@@ -1,5 +1,5 @@
 // Uncomment to enable the debug view
-#define DEBUG_ENABLE
+// #define DEBUG_ENABLE
 
 using System.Collections.Concurrent;
 using OpenTK.Mathematics;
@@ -423,11 +423,13 @@ internal struct Ray {
 #if DEBUG_ENABLE
 internal struct TracedRay {
     public readonly Ray ray;
+    public readonly Vector3 hitPoint;
     public readonly IntersectResult intersectResult;
 
-    public TracedRay(Ray ray, IntersectResult intersectResult) {
+    public TracedRay(Ray ray, IntersectResult intersectResult, Vector3 hitPoint) {
         this.ray = ray;
         this.intersectResult = intersectResult;
+        this.hitPoint = hitPoint;
     }
 }
 #endif
@@ -437,8 +439,8 @@ internal class RayTracer {
     /// Spheres in the scene
     /// </summary>
     private readonly Sphere[] _spheres = {
-        new(new Vector3(2.5f, 0, 5), 1.0f, Material.Diffuse(new Vector3(1f, 0, 0))),
-        new(new Vector3(3, 0, 8), 1.0f, Material.Plastic(new Vector3(0, 1, 0))),
+        new(new Vector3(2.5f, 0, 8), 1.0f, Material.Diffuse(new Vector3(1f, 0, 0))),
+        new(new Vector3(3, 0, 5), 1.0f, Material.Plastic(new Vector3(0, 1, 0))),
         new(new Vector3(-3, 1, 8), 1.0f, Material.Mirror(new Vector3(1, 1, 1)))
     };
 
@@ -482,6 +484,10 @@ internal class RayTracer {
     /// Default: 60 degrees (Unity's default)
     /// </summary>
     private const float FieldOfView = 60f;
+    /// <summary>
+    /// The maximum number of 'bounces' for a reflection (secondary) ray
+    /// </summary>
+    private const int ReflectionRecursionLimit = 32;
     /// <summary>
     /// The camera's starting position in world space
     /// </summary>
@@ -592,7 +598,7 @@ internal class RayTracer {
         IntersectResult result = t > 0 ? IntersectResult.Collide(t) : IntersectResult.Miss();
 
 #if DEBUG_ENABLE
-        Task.Run(() => _tracedRays.Add(new TracedRay(ray, result)));
+        Task.Run(() => _tracedRays.Add(new TracedRay(ray, result, ray.origin + ray.direction * t)));
 #endif
         return result;
     }
@@ -630,7 +636,7 @@ internal class RayTracer {
         }
 
 #if DEBUG_ENABLE
-        Task.Run(() => _tracedRays.Add(new TracedRay(ray, intersectResult)));
+        Task.Run(() => _tracedRays.Add(new TracedRay(ray, intersectResult, ray.origin + ray.direction * intersectResult.distance)));
 #endif
         return intersectResult;
     }
@@ -725,7 +731,7 @@ internal class RayTracer {
         if (!intersectResult.collision || intersectResult.distance - 0.01f <= 0)
             return new TraceResult(intersectResult.distance, Vector3.Zero, intersectResult);
 
-        if (secondaryBounceCount > 32) return new TraceResult(intersectResult.distance, Vector3.Zero, intersectResult);
+        if (secondaryBounceCount > ReflectionRecursionLimit) return new TraceResult(intersectResult.distance, Vector3.One, intersectResult);
 
         Vector3 hitPoint = ray.origin + ray.direction * intersectResult.distance;
         Vector3 color = Vector3.Zero;
@@ -792,7 +798,7 @@ internal class RayTracer {
             );
 
 #if DEBUG_ENABLE
-            Task.Run(() => _tracedRays.Add(new TracedRay(secondaryRay, secondaryTraceResult.intersectResult)));
+            Task.Run(() => _tracedRays.Add(new TracedRay(secondaryRay, secondaryTraceResult.intersectResult, hitPoint)));
 #endif
 
             if (secondaryTraceResult.distance - 0.01f > 0 && secondaryTraceResult.distance - 0.01f < closestSphere) {
@@ -834,7 +840,7 @@ internal class RayTracer {
             return new TraceResult(intersectResult.distance, Vector3.Zero, intersectResult);
 
         // Too many secondary ray bounces
-        if (secondaryBounceCount > 32) return new TraceResult(intersectResult.distance, Vector3.Zero, intersectResult);
+        if (secondaryBounceCount > ReflectionRecursionLimit) return new TraceResult(intersectResult.distance, Vector3.Zero, intersectResult);
 
         // Point on the surfac of the sphere
         Vector3 hitPoint = ray.origin + ray.direction * intersectResult.distance;
@@ -878,7 +884,9 @@ internal class RayTracer {
     private bool IsInDebugView(int x, int y) => x > DebugTopLeftX && y > DebugTopLeftY;
 
     public void Tick() {
+#if DEBUG_ENABLE
         _tracedRays.Clear();
+#endif
         screen.Clear(0);
 
         float planeHeight = NearClip * (float)Math.Tan(MathHelper.DegreesToRadians(FieldOfView * 0.5f)) * 2;
@@ -904,17 +912,35 @@ internal class RayTracer {
         }
 
         TracedRay[] rays = _tracedRays.ToArray();
-        for (int i = 0; i < rays.Length; i += 30) {
-            TracedRay tracedRay = rays[i];
-            Vector2i translatedOrigin = DebugOffsetCoordinates(tracedRay.ray.origin);
-            Vector2i translatedHitPoint = DebugOffsetCoordinates(tracedRay.ray.direction * tracedRay.intersectResult.distance);
+        Random random = new Random();
+        const int debugNumRays = 500;
+        for (int i = 0; i < debugNumRays; i++) {
+            int randIdx = random.Next(0, rays.Length);
+            TracedRay tracedRay = rays[randIdx];
+            
+            Vector2i translatedOrigin = ClampToDebugView(DebugOffsetCoordinates(tracedRay.ray.origin));
+            Vector2i translatedHitPoint = ClampToDebugView(DebugOffsetCoordinates(tracedRay.hitPoint));
 
-            screen.Line(translatedOrigin.X, translatedOrigin.Y, translatedHitPoint.X, translatedOrigin.Y, ShiftColor(VecUtil.FromFloat3(1f)));
+            Vector3 lineColor = tracedRay.ray.rayKind switch {
+                RayKind.Primary => new Vector3(1f, 0f, 0f),
+                RayKind.Secondary => new Vector3(0f, 1f, 0f),
+                RayKind.Shadow => new Vector3(0f, 0f, 1f),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+
+            screen.Line(translatedOrigin.X, translatedOrigin.Y, translatedHitPoint.X, translatedHitPoint.Y, ShiftColor(lineColor));
         }
 
 #endif
     }
 
+    private Vector2i ClampToDebugView(Vector2i input) {
+        return new Vector2i(
+            Math.Clamp(input.X, DebugTopLeftX, screen.width),
+            Math.Clamp(input.Y, DebugTopLeftY, screen.height)
+        );
+    }
+    
     private Vector2i DebugOffsetCoordinates(Vector3 worldspaceCoordinates) {
         Vector2 screenSpaceCenter = WorldspaceToScreenspace(worldspaceCoordinates.Xz);
         float offsetX = worldspaceCoordinates.X / DebugSizeScaler / 0.1f;
