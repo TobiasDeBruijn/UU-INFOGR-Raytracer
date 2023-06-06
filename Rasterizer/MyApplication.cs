@@ -1,97 +1,89 @@
 using System.Diagnostics;
 using OpenTK.Mathematics;
 
-namespace Template
-{
-    class MyApplication
-    {
-        // member variables
-        public Surface screen;                  // background surface for printing etc.
-        Mesh? teapot, floor;                    // meshes to draw using OpenGL
-        float a = 0;                            // teapot rotation angle
-        readonly Stopwatch timer = new();       // timer for measuring frame duration
-        Shader? shader;                         // shader to use for rendering
-        Shader? postproc;                       // shader to use for post processing
-        Texture? wood;                          // texture to use for rendering
-        RenderTarget? target;                   // intermediate render target
-        ScreenQuad? quad;                       // screen filling quad for post processing
-        readonly bool useRenderTarget = true;   // required for post processing
+namespace Rasterizer; 
 
-        // constructor
-        public MyApplication(Surface screen)
-        {
-            this.screen = screen;
-        }
-        // initialize
-        public void Init()
-        {
-            // load teapot
-            teapot = new Mesh("../../../assets/teapot.obj");
-            floor = new Mesh("../../../assets/floor.obj");
-            // initialize stopwatch
-            timer.Reset();
-            timer.Start();
-            // create shaders
-            shader = new Shader("../../../shaders/vs.glsl", "../../../shaders/fs.glsl");
-            postproc = new Shader("../../../shaders/vs_post.glsl", "../../../shaders/fs_post.glsl");
-            // load a texture
-            wood = new Texture("../../../assets/wood.jpg");
-            // create the render target
-            if (useRenderTarget) target = new RenderTarget(screen.width, screen.height);
-            quad = new ScreenQuad();
-        }
+internal class MyApplication {
+    // member variables
+    public readonly Surface Screen; // background surface for printing etc.
+    private Mesh? _teapot, _floor; // meshes to draw using OpenGL
+    private float _a; // teapot rotation angle
+    private readonly Stopwatch _timer = new(); // timer for measuring frame duration
+    private Shader? _shader; // shader to use for rendering
+    private Shader? _postproc; // shader to use for post processing
+    private Texture? _wood; // texture to use for rendering
+    private RenderTarget? _target; // intermediate render target
+    private ScreenQuad? _quad; // screen filling quad for post processing
+    private const bool UseRenderTarget = true; // required for post processing
 
-        // tick for background surface
-        public void Tick()
-        {
-            screen.Clear(0);
-            screen.Print("hello world", 2, 2, 0xffff00);
-        }
+    // constructor
+    public MyApplication(Surface screen) {
+        this.Screen = screen;
+    }
 
-        // tick for OpenGL rendering code
-        public void RenderGL()
-        {
-            // measure frame duration
-            float frameDuration = timer.ElapsedMilliseconds;
-            timer.Reset();
-            timer.Start();
+    // initialize
+    public void Init() {
+        // load teapot
+        _teapot = new Mesh("../../../assets/teapot.obj");
+        _floor = new Mesh("../../../assets/floor.obj");
+        // initialize stopwatch
+        _timer.Reset();
+        _timer.Start();
+        // create shaders
+        _shader = new Shader("../../../shaders/vs.glsl", "../../../shaders/fs.glsl");
+        _postproc = new Shader("../../../shaders/vs_post.glsl", "../../../shaders/fs_post.glsl");
+        // load a texture
+        _wood = new Texture("../../../assets/wood.jpg");
+        // create the render target
+        if (UseRenderTarget) _target = new RenderTarget(Screen.Width, Screen.Height);
+        _quad = new ScreenQuad();
+    }
 
-            // prepare matrix for vertex shader
-            float angle90degrees = MathF.PI / 2;
-            Matrix4 teapotObjectToWorld = Matrix4.CreateScale(0.5f) * Matrix4.CreateFromAxisAngle(new Vector3(0, 1, 0), a);
-            Matrix4 floorObjectToWorld = Matrix4.CreateScale(4.0f) * Matrix4.CreateFromAxisAngle(new Vector3(0, 1, 0), a);
-            Matrix4 worldToCamera = Matrix4.CreateTranslation(new Vector3(0, -14.5f, 0)) * Matrix4.CreateFromAxisAngle(new Vector3(1, 0, 0), angle90degrees);
-            Matrix4 cameraToScreen = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(60.0f), (float)screen.width/screen.height, .1f, 1000);
+    // tick for background surface
+    public void Tick() {
+        Screen.Clear(0);
+        Screen.Print("hello world", 2, 2, 0xffff00);
+    }
 
-            // update rotation
-            a += 0.001f * frameDuration;
-            if (a > 2 * MathF.PI) a -= 2 * MathF.PI;
+    // tick for OpenGL rendering code
+    public void RenderGl() {
+        // measure frame duration
+        float frameDuration = _timer.ElapsedMilliseconds;
+        _timer.Reset();
+        _timer.Start();
 
-            if (useRenderTarget && target != null && quad != null)
-            {
-                // enable render target
-                target.Bind();
+        // prepare matrix for vertex shader
+        float angle90degrees = MathF.PI / 2;
+        Matrix4 teapotObjectToWorld = Matrix4.CreateScale(0.5f) * Matrix4.CreateFromAxisAngle(new Vector3(0, 1, 0), _a);
+        Matrix4 floorObjectToWorld = Matrix4.CreateScale(4.0f) * Matrix4.CreateFromAxisAngle(new Vector3(0, 1, 0), _a);
+        Matrix4 worldToCamera = Matrix4.CreateTranslation(new Vector3(0, -14.5f, 0)) *
+                                Matrix4.CreateFromAxisAngle(new Vector3(1, 0, 0), angle90degrees);
+        var cameraToScreen = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(60.0f),
+            (float)Screen.Width / Screen.Height, .1f, 1000);
 
-                // render scene to render target
-                if (shader != null && wood != null)
-                {
-                    teapot?.Render(shader, teapotObjectToWorld * worldToCamera * cameraToScreen, teapotObjectToWorld, wood);
-                    floor?.Render(shader, floorObjectToWorld * worldToCamera * cameraToScreen, floorObjectToWorld, wood);
-                }
+        // update rotation
+        _a += 0.001f * frameDuration;
+        if (_a > 2 * MathF.PI) _a -= 2 * MathF.PI;
 
-                // render quad
-                target.Unbind();
-                if (postproc != null)
-                    quad.Render(postproc, target.GetTextureID());
+        if (UseRenderTarget && _target != null && _quad != null) {
+            // enable render target
+            _target.Bind();
+
+            // render scene to render target
+            if (_shader != null && _wood != null) {
+                _teapot?.Render(_shader, teapotObjectToWorld * worldToCamera * cameraToScreen, teapotObjectToWorld, _wood);
+                _floor?.Render(_shader, floorObjectToWorld * worldToCamera * cameraToScreen, floorObjectToWorld, _wood);
             }
-            else
-            {
-                // render scene directly to the screen
-                if (shader != null && wood != null)
-                {
-                    teapot?.Render(shader, teapotObjectToWorld * worldToCamera * cameraToScreen, teapotObjectToWorld, wood);
-                    floor?.Render(shader, floorObjectToWorld * worldToCamera * cameraToScreen, floorObjectToWorld, wood);
-                }
+
+            // render quad
+            RenderTarget.Unbind();
+            if (_postproc != null)
+                _quad.Render(_postproc, _target.GetTextureId());
+        } else {
+            // render scene directly to the screen
+            if (_shader != null && _wood != null) {
+                _teapot?.Render(_shader, teapotObjectToWorld * worldToCamera * cameraToScreen, teapotObjectToWorld, _wood);
+                _floor?.Render(_shader, floorObjectToWorld * worldToCamera * cameraToScreen, floorObjectToWorld, _wood);
             }
         }
     }
